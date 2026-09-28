@@ -14,7 +14,7 @@ const shuffleArray = (array) => {
   return arr;
 };
 
-// 🔀 ฟังก์ชันเตรียมชุด Quiz พร้อมสลับคำถามและตัวเลือก (และคำนวณ Answer Index ใหม่)
+// 🔀 ฟังก์ชันเตรียมชุด Quiz พร้อมสลับคำถามและตัวเลือก
 const prepareShuffledQuiz = (questions = []) => {
   const shuffledQuestions = shuffleArray(questions);
   return shuffledQuestions.map((q) => {
@@ -107,7 +107,7 @@ function PlayGameContent() {
   const [activeQuestions, setActiveQuestions] = useState([]);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
-  const [isAnswered, setIsAnswered] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
   const [answersSummary, setAnswersSummary] = useState([]);
@@ -115,7 +115,7 @@ function PlayGameContent() {
   // 🎴 Flashcard State
   const [activeCards, setActiveCards] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const [showFlashAnswer, setShowFlashAnswer] = useState(false);
   const [knownCards, setKnownCards] = useState([]);
   const [unknownCards, setUnknownCards] = useState([]);
   const [flashcardFinished, setFlashcardFinished] = useState(false);
@@ -128,12 +128,19 @@ function PlayGameContent() {
   const [matchedPairsCount, setMatchedPairsCount] = useState(0);
   const [comboStreak, setComboStreak] = useState(0);
   const [wrongTermId, setWrongTermId] = useState(null);
+  const [matchingFinished, setMatchingFinished] = useState(false);
 
-  // 📝 Score Submission State
+  // ✨ State สำหรับ Popup โชว์คู่ที่จับคู่สำเร็จ
+  const [matchedPopup, setMatchedPopup] = useState(null);
+  const [popupVisible, setPopupVisible] = useState(false);
+
+  // 📝 Score Submission & 🏆 Leaderboard State
   const [playerName, setPlayerName] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
-  const isGameDone = quizFinished || flashcardFinished || (activePairs.length > 0 && matchedPairsCount === activePairs.length);
+  const isGameDone = quizFinished || flashcardFinished || matchingFinished;
 
   useEffect(() => {
     let interval = null;
@@ -145,6 +152,35 @@ function PlayGameContent() {
     return () => clearInterval(interval);
   }, [timerActive, loading, error, isGameDone]);
 
+  // 🏆 ฟังก์ชันดึงและจัดอันดับ Leaderboard
+  const fetchLeaderboard = async () => {
+    if (!gameId) return;
+    setLoadingLeaderboard(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`);
+      const result = await res.json();
+      if (result.status === 'success' && result.data && result.data.scores) {
+        const rawScores = result.data.scores || [];
+        // เรียงลำดับ: คะแนนมากที่สุดก่อน -> ถ้าคะแนนเท่ากัน ให้ดูเวลาที่ใช้น้อยที่สุด (เร็วกว่า)
+        const sorted = [...rawScores].sort((a, b) => {
+          const scoreA = a.score ?? 0;
+          const scoreB = b.score ?? 0;
+          if (scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
+          const timeA = a.time_taken_seconds ?? a.time_taken ?? a.timeTaken ?? 999999;
+          const timeB = b.time_taken_seconds ?? b.time_taken ?? b.timeTaken ?? 999999;
+          return timeA - timeB;
+        });
+        setLeaderboard(sorted.slice(0, 5)); // เอาแค่ Top 5
+      }
+    } catch (err) {
+      console.error('Fetch leaderboard error:', err);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+
   useEffect(() => {
     if (!gameId) {
       setError('ไม่พบรหัสเกม กรุณาตรวจสอบลิงก์อีกครั้ง');
@@ -154,12 +190,25 @@ function PlayGameContent() {
 
     const fetchGame = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/games/${gameId}`);
+        const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`);
         const result = await res.json();
 
         if (result.status === 'success' && result.data) {
           const fetchedGame = result.data;
           setGame(fetchedGame);
+
+          // โหลด Leaderboard เดิมไว้ล่วงหน้า
+          if (fetchedGame.scores) {
+            const sorted = [...fetchedGame.scores].sort((a, b) => {
+              const scoreA = a.score ?? 0;
+              const scoreB = b.score ?? 0;
+              if (scoreB !== scoreA) return scoreB - scoreA;
+              const timeA = a.time_taken_seconds ?? a.time_taken ?? a.timeTaken ?? 999999;
+              const timeB = b.time_taken_seconds ?? b.time_taken ?? b.timeTaken ?? 999999;
+              return timeA - timeB;
+            });
+            setLeaderboard(sorted.slice(0, 5));
+          }
 
           // 🔀 สลับ Quiz ตอนโหลดครั้งแรก
           if (fetchedGame.data?.questions) {
@@ -192,6 +241,13 @@ function PlayGameContent() {
     fetchGame();
   }, [gameId]);
 
+  // ดึง Leaderboard ล่าสุดทันทีเมื่อเล่นจบ
+  useEffect(() => {
+    if (isGameDone) {
+      fetchLeaderboard();
+    }
+  }, [isGameDone]);
+
   const triggerConfetti = () => {
     playSound('win');
     confetti({
@@ -211,12 +267,17 @@ function PlayGameContent() {
   // 🎯 QUIZ LOGIC
   // ==========================================
   const handleSelectQuizOption = (optionIndex) => {
-    if (isAnswered) return;
+    if (isConfirmed) return;
+    playSound('click');
     setSelectedOption(optionIndex);
-    setIsAnswered(true);
+  };
+
+  const handleConfirmAnswer = () => {
+    if (selectedOption === null || isConfirmed) return;
+    setIsConfirmed(true);
 
     const currentQuestion = activeQuestions[currentQuizIndex];
-    const isCorrect = optionIndex === currentQuestion.answer;
+    const isCorrect = selectedOption === currentQuestion.answer;
 
     if (isCorrect) {
       playSound('correct');
@@ -229,7 +290,7 @@ function PlayGameContent() {
       ...prev,
       {
         question: currentQuestion.question,
-        userAnswer: optionIndex,
+        userAnswer: selectedOption,
         correctAnswer: currentQuestion.answer,
         isCorrect,
         explanation: currentQuestion.explanation,
@@ -242,7 +303,7 @@ function PlayGameContent() {
     if (currentQuizIndex + 1 < total) {
       setCurrentQuizIndex((prev) => prev + 1);
       setSelectedOption(null);
-      setIsAnswered(false);
+      setIsConfirmed(false);
       playSound('click');
     } else {
       setQuizFinished(true);
@@ -251,14 +312,13 @@ function PlayGameContent() {
     }
   };
 
-  // 🔀 ฟังก์ชันรีเซ็ตและสุ่มคำถาม + ตัวเลือกใหม่ทั้งหมด
   const resetQuizGame = () => {
     if (game?.data?.questions) {
       setActiveQuestions(prepareShuffledQuiz(game.data.questions));
     }
     setCurrentQuizIndex(0);
     setSelectedOption(null);
-    setIsAnswered(false);
+    setIsConfirmed(false);
     setQuizScore(0);
     setQuizFinished(false);
     setAnswersSummary([]);
@@ -268,19 +328,19 @@ function PlayGameContent() {
   };
 
   // ==========================================
-  // 🎴 FLASHCARD DECK LOGIC
+  // 🎴 FLASHCARD LOGIC
   // ==========================================
-  const handleCardRating = (isKnown) => {
-    playSound(isKnown ? 'correct' : 'click');
+  const handleCardRating = (isCorrectAnswer) => {
+    playSound(isCorrectAnswer ? 'correct' : 'wrong');
     const currentCard = activeCards[currentCardIndex];
 
-    if (isKnown) {
+    if (isCorrectAnswer) {
       setKnownCards((prev) => [...prev, currentCard]);
     } else {
       setUnknownCards((prev) => [...prev, currentCard]);
     }
 
-    setIsCardFlipped(false);
+    setShowFlashAnswer(false);
 
     if (currentCardIndex + 1 < activeCards.length) {
       setCurrentCardIndex((prev) => prev + 1);
@@ -291,13 +351,12 @@ function PlayGameContent() {
     }
   };
 
-  // 🔀 ฟังก์ชันรีเซ็ตและสลับ Flashcard Deck ใหม่
   const resetFlashcardGame = () => {
     if (game?.data?.cards) {
       setActiveCards(shuffleArray(game.data.cards));
     }
     setCurrentCardIndex(0);
-    setIsCardFlipped(false);
+    setShowFlashAnswer(false);
     setKnownCards([]);
     setUnknownCards([]);
     setFlashcardFinished(false);
@@ -307,7 +366,7 @@ function PlayGameContent() {
   };
 
   // ==========================================
-  // 🧩 MATCHING GAME LOGIC
+  // 🧩 MATCHING GAME LOGIC (2s Popup + Smooth Fade)
   // ==========================================
   const handleSelectTerm = (termId) => {
     if (userMatches[termId]) return;
@@ -321,17 +380,44 @@ function PlayGameContent() {
 
     if (selectedTerm === defId) {
       playSound('match');
+
+      const matchedItem = activePairs.find((p) => p.id === selectedTerm);
+      const isFinalPair = matchedPairsCount + 1 === activePairs.length;
+
+      if (isFinalPair) {
+        setTimerActive(false);
+      }
+
+      if (matchedItem) {
+        setMatchedPopup({
+          term: matchedItem.term,
+          definition: matchedItem.definition,
+        });
+
+        setTimeout(() => {
+          setPopupVisible(true);
+        }, 20);
+
+        // ⏱️ โชว์ 2 วินาที (2000ms) แล้วเริ่มจาง
+        setTimeout(() => {
+          setPopupVisible(false);
+        }, 2000);
+
+        // ⏱️ จางจบใน 600ms รวมเป็น 2600ms แล้วแสดงหน้าสรุปผล
+        setTimeout(() => {
+          setMatchedPopup(null);
+          if (isFinalPair) {
+            setMatchingFinished(true);
+            triggerConfetti();
+          }
+        }, 2600);
+      }
+
       const newMatches = { ...userMatches, [selectedTerm]: defId };
       setUserMatches(newMatches);
-      const newCount = matchedPairsCount + 1;
-      setMatchedPairsCount(newCount);
+      setMatchedPairsCount((prev) => prev + 1);
       setSelectedTerm(null);
       setComboStreak((prev) => prev + 1);
-
-      if (activePairs.length > 0 && newCount === activePairs.length) {
-        setTimerActive(false);
-        setTimeout(() => triggerConfetti(), 300);
-      }
     } else {
       playSound('wrong');
       setWrongTermId(selectedTerm);
@@ -343,7 +429,6 @@ function PlayGameContent() {
     }
   };
 
-  // 🔀 ฟังก์ชันรีเซ็ตและสลับกระดานจับคู่ใหม่ทั้งสองฝั่ง
   const resetMatchingGame = () => {
     if (game?.data?.pairs) {
       setActivePairs(shuffleArray(game.data.pairs));
@@ -354,6 +439,9 @@ function PlayGameContent() {
     setUserMatches({});
     setMatchedPairsCount(0);
     setComboStreak(0);
+    setMatchingFinished(false);
+    setMatchedPopup(null);
+    setPopupVisible(false);
     setScoreSubmitted(false);
     setSecondsElapsed(0);
     setTimerActive(true);
@@ -369,15 +457,20 @@ function PlayGameContent() {
     }
 
     try {
-      const res = await fetch('http://localhost:8000/api/games/score', {
+      const res = await fetch('http://127.0.0.1:8000/api/games/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           game_id: gameId,
-          player_name: playerName,
+          student_name: playerName.trim(),
+          playerName: playerName.trim(),
+          player_name: playerName.trim(),
           score: finalScore,
+          total_score: totalQuestions,
           total_questions: totalQuestions,
-          time_taken: formatTime(secondsElapsed),
+          time_taken_seconds: secondsElapsed || 0,
+          time_taken: secondsElapsed || 0,
+          timeTaken: secondsElapsed || 0,
         }),
       });
 
@@ -385,7 +478,8 @@ function PlayGameContent() {
       if (result.status === 'success') {
         setScoreSubmitted(true);
         playSound('win');
-        alert('บันทึกคะแนนเข้าสู่ระบบสำเร็จ!');
+        // รีเฟรชตาราง Leaderboard ทันทีเพื่อให้แสดงอันดับล่าสุด
+        fetchLeaderboard();
       } else {
         alert('เกิดข้อผิดพลาดในการบันทึกคะแนน');
       }
@@ -399,13 +493,9 @@ function PlayGameContent() {
   if (error || !game) return <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 md:p-8 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 md:p-8 flex flex-col items-center justify-center relative overflow-hidden">
       
       <style jsx global>{`
-        .perspective-1000 { perspective: 1000px; }
-        .transform-style-preserve-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
-        .rotate-y-180 { transform: rotateY(180deg); }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           20%, 60% { transform: translateX(-8px); }
@@ -413,6 +503,35 @@ function PlayGameContent() {
         }
         .animate-shake { animation: shake 0.5s ease-in-out; }
       `}</style>
+
+      {/* 🌟 MATCHING POPUP TOAST (2s โชว์ + 600ms เฟดจางออก) */}
+      {matchedPopup && (
+        <div
+          className={`fixed top-1/2 left-1/2 z-50 pointer-events-none transform -translate-x-1/2 transition-all duration-600 ease-out ${
+            popupVisible
+              ? '-translate-y-1/2 opacity-100 scale-100'
+              : '-translate-y-[62%] opacity-0 scale-95'
+          }`}
+        >
+          <div className="bg-neutral-900/95 border-2 border-emerald-500 rounded-3xl p-6 md:p-8 shadow-2xl shadow-emerald-950/80 backdrop-blur-md max-w-md w-[90vw] text-center space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 text-xs font-black uppercase tracking-wider">
+              <span>✨ จับคู่ถูกต้อง! Perfect Match</span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="text-base md:text-xl font-black text-indigo-300">
+                {matchedPopup.term}
+              </div>
+              <div className="text-xs text-neutral-400 font-bold uppercase tracking-widest">
+                ⮁ เชื่อมโยงกับ ⮁
+              </div>
+              <div className="text-xs md:text-sm font-medium text-emerald-200 bg-emerald-950/40 p-3 rounded-xl border border-emerald-900/60 leading-relaxed">
+                {matchedPopup.definition}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="w-full max-w-3xl space-y-6">
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
@@ -440,7 +559,7 @@ function PlayGameContent() {
           </div>
 
           {/* ==========================================
-              🎯 1. QUIZ GAME (SHUFFLED)
+              🎯 1. QUIZ GAME
               ========================================== */}
           {activeQuestions.length > 0 && !quizFinished && (
             <div className="space-y-6">
@@ -474,37 +593,61 @@ function PlayGameContent() {
 
                   let btnStyle = 'bg-neutral-950 border-neutral-800 text-neutral-200 hover:border-indigo-500/60 hover:bg-neutral-900';
 
-                  if (isAnswered) {
-                    if (isCorrect) btnStyle = 'bg-emerald-950/80 border-emerald-500 text-emerald-200 font-bold shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500';
-                    else if (isSelected && !isCorrect) btnStyle = 'bg-rose-950/80 border-rose-500 text-rose-200 shadow-lg shadow-rose-950/40';
-                    else btnStyle = 'bg-neutral-950/40 border-neutral-800/40 text-neutral-600 opacity-60';
+                  if (!isConfirmed) {
+                    if (isSelected) {
+                      btnStyle = 'bg-indigo-950/80 border-indigo-500 text-indigo-200 font-bold ring-2 ring-indigo-500 shadow-lg shadow-indigo-950/50 scale-[1.01]';
+                    }
+                  } else {
+                    if (isCorrect) {
+                      btnStyle = 'bg-emerald-950/80 border-emerald-500 text-emerald-200 font-bold shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500';
+                    } else if (isSelected && !isCorrect) {
+                      btnStyle = 'bg-rose-950/80 border-rose-500 text-rose-200 shadow-lg shadow-rose-950/40';
+                    } else {
+                      btnStyle = 'bg-neutral-950/40 border-neutral-800/40 text-neutral-600 opacity-60';
+                    }
                   }
 
                   return (
                     <button
                       key={optIdx}
-                      disabled={isAnswered}
+                      disabled={isConfirmed}
                       onClick={() => handleSelectQuizOption(optIdx)}
                       className={`p-4 rounded-xl border text-left text-sm transition-all flex items-center justify-between group ${btnStyle}`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                          isAnswered && isCorrect ? 'bg-emerald-500 text-neutral-950' :
-                          isAnswered && isSelected && !isCorrect ? 'bg-rose-500 text-white' :
-                          'bg-neutral-900 text-neutral-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors'
+                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                          !isConfirmed && isSelected ? 'bg-indigo-600 text-white' :
+                          isConfirmed && isCorrect ? 'bg-emerald-500 text-neutral-950' :
+                          isConfirmed && isSelected && !isCorrect ? 'bg-rose-500 text-white' :
+                          'bg-neutral-900 text-neutral-400 group-hover:bg-indigo-600 group-hover:text-white'
                         }`}>
                           {String.fromCharCode(65 + optIdx)}
                         </span>
                         <span className="font-medium">{optionText}</span>
                       </div>
-                      {isAnswered && isCorrect && <span className="text-emerald-400 text-base font-bold">✓</span>}
-                      {isAnswered && isSelected && !isCorrect && <span className="text-rose-400 text-base font-bold">✗</span>}
+                      {!isConfirmed && isSelected && <span className="text-indigo-400 text-xs font-bold bg-indigo-900/60 px-2 py-0.5 rounded border border-indigo-700">เลือกแล้ว</span>}
+                      {isConfirmed && isCorrect && <span className="text-emerald-400 text-base font-bold">✓</span>}
+                      {isConfirmed && isSelected && !isCorrect && <span className="text-rose-400 text-base font-bold">✗</span>}
                     </button>
                   );
                 })}
               </div>
 
-              {isAnswered && (
+              {!isConfirmed && (
+                <button
+                  onClick={handleConfirmAnswer}
+                  disabled={selectedOption === null}
+                  className={`w-full py-3.5 font-bold text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
+                    selectedOption !== null
+                      ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-[1.01] active:scale-[0.99]'
+                      : 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-800'
+                  }`}
+                >
+                  <span>{selectedOption !== null ? 'ยืนยันคำตอบ 🔒' : 'กรุณาเลือกคำตอบด้านบน'}</span>
+                </button>
+              )}
+
+              {isConfirmed && (
                 <div className="space-y-4">
                   <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 text-xs space-y-1 text-neutral-300">
                     <span className="font-bold text-indigo-400">💡 คำอธิบายเฉลย:</span>
@@ -523,20 +666,20 @@ function PlayGameContent() {
           )}
 
           {/* ==========================================
-              🎴 2. FLASHCARD STUDIO (SHUFFLED)
+              🎴 2. FLASHCARD CARD
               ========================================== */}
           {activeCards.length > 0 && !flashcardFinished && (
             <div className="space-y-6">
               <div className="flex justify-between items-center text-xs font-semibold">
                 <span className="text-neutral-400">
-                  การ์ดใบที่ <span className="text-white font-bold text-sm">{currentCardIndex + 1}</span> จาก {activeCards.length}
+                  ข้อที่ <span className="text-white font-bold text-sm">{currentCardIndex + 1}</span> จาก {activeCards.length}
                 </span>
                 <div className="flex gap-2">
-                  <span className="bg-emerald-950/80 border border-emerald-800 text-emerald-400 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                    ✓ จำได้: {knownCards.length}
+                  <span className="bg-emerald-950/80 border border-emerald-800 text-emerald-400 px-2.5 py-0.5 rounded-md font-bold text-[10px]">
+                    ✓ ตอบถูก (+1): {knownCards.length}
                   </span>
-                  <span className="bg-rose-950/80 border border-rose-800 text-rose-400 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                    ✗ ต้องทบทวน: {unknownCards.length}
+                  <span className="bg-rose-950/80 border border-rose-800 text-rose-400 px-2.5 py-0.5 rounded-md font-bold text-[10px]">
+                    ✗ ตอบผิด (+0): {unknownCards.length}
                   </span>
                 </div>
               </div>
@@ -548,65 +691,69 @@ function PlayGameContent() {
                 />
               </div>
 
-              <div
-                onClick={() => {
-                  playSound('flip');
-                  setIsCardFlipped(!isCardFlipped);
-                }}
-                className="perspective-1000 w-full h-64 md:h-72 cursor-pointer select-none"
-              >
-                <div
-                  className={`w-full h-full relative transition-transform duration-500 transform-style-preserve-3d ${
-                    isCardFlipped ? 'rotate-y-180' : ''
-                  }`}
-                >
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-neutral-900 to-neutral-950 border-2 border-neutral-800 hover:border-indigo-500/50 rounded-3xl p-6 flex flex-col justify-between items-center text-center shadow-xl backface-hidden">
-                    <div className="w-full flex justify-between items-center text-[10px] uppercase font-bold text-neutral-500">
-                      <span className="bg-neutral-800 px-2.5 py-1 rounded-md text-neutral-300">QUESTION / คำถาม</span>
-                      <span>🔄 คลิกเพื่อพลิกดูคำตอบ</span>
-                    </div>
-                    <div className="text-xl md:text-2xl font-extrabold text-white px-4">
-                      {activeCards[currentCardIndex].front}
-                    </div>
-                    <div className="text-[11px] text-neutral-500 font-medium">แตะการ์ดเพื่อดูคำตอบเฉลย</div>
-                  </div>
-
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-950/70 to-neutral-950 border-2 border-indigo-500/60 rounded-3xl p-6 flex flex-col justify-between items-center text-center shadow-xl backface-hidden rotate-y-180">
-                    <div className="w-full flex justify-between items-center text-[10px] uppercase font-bold text-indigo-400">
-                      <span className="bg-indigo-900/80 border border-indigo-700 px-2.5 py-1 rounded-md text-indigo-200">
-                        ANSWER / คำอธิบาย
-                      </span>
-                      <span>🔄 คลิกเพื่อพลิกกลับ</span>
-                    </div>
-                    <div className="text-base md:text-lg font-semibold text-neutral-100 px-4 leading-relaxed overflow-y-auto max-h-36">
-                      {activeCards[currentCardIndex].back}
-                    </div>
-                    <div className="text-[11px] text-indigo-300 font-medium">กดปุ่มด้านล่างเพื่อประเมินความจำ</div>
-                  </div>
-                </div>
+              <div className="text-center">
+                <span className="text-xs font-extrabold px-3 py-1 rounded-full border bg-neutral-950 text-neutral-300 border-neutral-800">
+                  {showFlashAnswer ? '📖 ด้านหลัง (คำตอบ / เฉลย)' : '📝 ด้านหน้า (คำถาม)'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="w-full min-h-[260px] md:min-h-[300px] bg-neutral-950 border-2 border-neutral-800 rounded-3xl overflow-hidden shadow-2xl flex items-stretch">
                 <button
                   onClick={() => handleCardRating(false)}
-                  className="py-3.5 bg-neutral-950 hover:bg-rose-950/40 border border-rose-900/60 hover:border-rose-500 text-rose-300 font-bold text-xs md:text-sm rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
+                  className="w-20 md:w-28 bg-rose-950/20 hover:bg-rose-600 border-r-2 border-neutral-800 hover:border-rose-500 text-rose-400 hover:text-white transition-all duration-200 flex flex-col items-center justify-center gap-2 p-2 group shrink-0"
+                  title="ตอบผิด (+0 คะแนน และไปข้อถัดไป)"
                 >
-                  <span>❌ ยังจำไม่ได้</span>
+                  <span className="text-2xl md:text-3xl group-hover:scale-125 transition-transform">❌</span>
+                  <span className="text-xs font-black uppercase tracking-wider">ตอบผิด</span>
+                  <span className="text-[10px] opacity-75 font-mono">+0</span>
                 </button>
+
+                <div className="flex-1 p-6 md:p-8 flex flex-col justify-between items-center text-center">
+                  <div className="w-full flex justify-between items-center text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-800/80 pb-2">
+                    <span className="text-amber-400 font-mono">การ์ดข้อ #{currentCardIndex + 1}</span>
+                    <span>{showFlashAnswer ? 'คำตอบเฉลย' : 'แตะปุ่มเพื่อดูคำตอบ'}</span>
+                  </div>
+
+                  <div className="my-auto py-4 px-2 w-full">
+                    {!showFlashAnswer ? (
+                      <div className="text-lg md:text-2xl font-extrabold text-white leading-relaxed">
+                        {activeCards[currentCardIndex].front}
+                      </div>
+                    ) : (
+                      <div className="text-base md:text-xl font-bold text-emerald-300 leading-relaxed bg-emerald-950/20 p-4 rounded-2xl border border-emerald-900/60">
+                        {activeCards[currentCardIndex].back}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      playSound('flip');
+                      setShowFlashAnswer(!showFlashAnswer);
+                    }}
+                    className="px-5 py-2.5 rounded-xl border text-xs font-bold transition-all shadow-md flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border-neutral-700 hover:border-indigo-500"
+                  >
+                    <span>{showFlashAnswer ? '🔄 พลิกกลับไปดูคำถาม (ด้านหน้า)' : '👁️ กดดูคำตอบ / เฉลย (ด้านหลัง)'}</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={() => handleCardRating(true)}
-                  className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs md:text-sm rounded-2xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2"
+                  className="w-20 md:w-28 bg-emerald-950/20 hover:bg-emerald-600 border-l-2 border-neutral-800 hover:border-emerald-500 text-emerald-400 hover:text-white transition-all duration-200 flex flex-col items-center justify-center gap-2 p-2 group shrink-0"
+                  title="ตอบถูก (+1 คะแนน และไปข้อถัดไป)"
                 >
-                  <span>✅ จำได้แม่นยำ</span>
+                  <span className="text-2xl md:text-3xl group-hover:scale-125 transition-transform">✅</span>
+                  <span className="text-xs font-black uppercase tracking-wider">ตอบถูก</span>
+                  <span className="text-[10px] opacity-75 font-mono">+1</span>
                 </button>
               </div>
             </div>
           )}
 
           {/* ==========================================
-              🧩 3. MATCHING ARENA (SHUFFLED)
+              🧩 3. MATCHING ARENA
               ========================================== */}
-          {activePairs.length > 0 && matchedPairsCount < activePairs.length && (
+          {activePairs.length > 0 && !matchingFinished && (
             <div className="space-y-6">
               <div className="flex justify-between items-center text-xs font-semibold">
                 <span className="text-neutral-400">
@@ -624,87 +771,69 @@ function PlayGameContent() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Terms Column (Left - Shuffled) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Terms Column (Left) */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-1">
-                    📌 คำศัพท์ (Terms)
+                  <div className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-1 flex items-center gap-1.5">
+                    <span>📌</span> คำศัพท์ (Terms)
                   </div>
-                  {activePairs.map((p) => {
-                    const isMatched = !!userMatches[p.id];
-                    const isSelected = selectedTerm === p.id;
-                    const isWrong = wrongTermId === p.id;
-                    const pairIndex = activePairs.findIndex((item) => item.id === p.id) + 1;
+                  {activePairs
+                    .filter((p) => !userMatches[p.id])
+                    .map((p) => {
+                      const isSelected = selectedTerm === p.id;
+                      const isWrong = wrongTermId === p.id;
 
-                    let cardClass = 'bg-neutral-950 border-neutral-800 text-neutral-200 hover:border-indigo-500 hover:bg-neutral-900';
+                      let cardClass = 'bg-neutral-950 border-neutral-800 text-neutral-200 hover:border-indigo-500/70 hover:bg-neutral-900 hover:shadow-md';
 
-                    if (isMatched) {
-                      cardClass = 'bg-emerald-950/30 border-emerald-500/80 text-emerald-200 opacity-80 cursor-default';
-                    } else if (isWrong) {
-                      cardClass = 'bg-rose-950 border-rose-500 text-rose-200 animate-shake';
-                    } else if (isSelected) {
-                      cardClass = 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400 scale-[1.02]';
-                    }
+                      if (isWrong) {
+                        cardClass = 'bg-rose-950/80 border-rose-500 text-rose-200 animate-shake shadow-lg shadow-rose-950/50';
+                      } else if (isSelected) {
+                        cardClass = 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-600/40 ring-2 ring-indigo-400 scale-[1.02]';
+                      }
 
-                    return (
-                      <button
-                        key={p.id}
-                        disabled={isMatched}
-                        onClick={() => handleSelectTerm(p.id)}
-                        className={`w-full p-4 rounded-2xl border text-left text-sm font-semibold transition-all flex items-center justify-between group ${cardClass}`}
-                      >
-                        <span className="truncate pr-2">{p.term}</span>
-                        {isMatched && (
-                          <span className="bg-emerald-500 text-neutral-950 font-black text-[10px] px-2.5 py-1 rounded-full shrink-0 shadow">
-                            คู่ที่ #{pairIndex} ✓
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => handleSelectTerm(p.id)}
+                          className={`w-full min-h-[82px] p-4 rounded-2xl border text-center text-xs md:text-sm font-semibold transition-all duration-200 flex items-center justify-center ${cardClass}`}
+                        >
+                          <span className="line-clamp-3 leading-snug">{p.term}</span>
+                        </button>
+                      );
+                    })}
                 </div>
 
-                {/* Definitions Column (Right - Shuffled) */}
+                {/* Definitions Column (Right) */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                    🎯 ความหมาย (Definitions)
+                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1.5">
+                    <span>🎯</span> ความหมาย (Definitions)
                   </div>
-                  {shuffledDefinitions.map((d) => {
-                    const matchedTermId = Object.keys(userMatches).find((key) => userMatches[key] === d.id);
-                    const isMatched = !!matchedTermId;
-                    const pairIndex = isMatched ? activePairs.findIndex((item) => item.id === Number(matchedTermId)) + 1 : null;
+                  {shuffledDefinitions
+                    .filter((d) => !Object.values(userMatches).includes(d.id))
+                    .map((d) => {
+                      let cardClass = 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-emerald-500/60 hover:bg-neutral-900';
 
-                    let cardClass = 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-emerald-500 hover:bg-neutral-900';
+                      if (selectedTerm) {
+                        cardClass = 'bg-neutral-950 border-neutral-700 text-neutral-100 hover:border-emerald-400 hover:bg-neutral-900 hover:ring-2 hover:ring-emerald-400/50 cursor-pointer shadow-md';
+                      }
 
-                    if (isMatched) {
-                      cardClass = 'bg-emerald-950/30 border-emerald-500/80 text-emerald-200 opacity-80 cursor-default';
-                    } else if (selectedTerm) {
-                      cardClass = 'bg-neutral-950 border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:ring-1 hover:ring-emerald-400 cursor-pointer';
-                    }
-
-                    return (
-                      <button
-                        key={d.id}
-                        disabled={isMatched}
-                        onClick={() => handleSelectDefinition(d.id)}
-                        className={`w-full p-4 rounded-2xl border text-left text-xs md:text-sm transition-all flex items-center justify-between gap-3 ${cardClass}`}
-                      >
-                        <span className="leading-relaxed flex-1">{d.text}</span>
-                        {isMatched && (
-                          <span className="bg-emerald-500 text-neutral-950 font-black text-[10px] px-2.5 py-1 rounded-full shrink-0 shadow">
-                            คู่ที่ #{pairIndex} ✓
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={d.id}
+                          onClick={() => handleSelectDefinition(d.id)}
+                          className={`w-full min-h-[82px] p-4 rounded-2xl border text-center text-xs md:text-sm transition-all duration-200 flex items-center justify-center ${cardClass}`}
+                        >
+                          <span className="line-clamp-3 leading-relaxed font-medium">{d.text}</span>
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             </div>
           )}
 
           {/* ==========================================
-              🏁 SUMMARY & LEADERBOARD SUBMISSION SCREEN
+              🏁 SUMMARY SCREEN (พร้อม 🏆 LEADERBOARD TOP 5)
               ========================================== */}
           {isGameDone && (
             <div className="space-y-6 text-center">
@@ -730,17 +859,17 @@ function PlayGameContent() {
                   <div className="pt-2 flex justify-center gap-6">
                     <div>
                       <div className="text-2xl font-black text-emerald-400">{knownCards.length}</div>
-                      <div className="text-[11px] text-neutral-400">จำได้แม่นยำ</div>
+                      <div className="text-[11px] text-neutral-400">ตอบถูกต้อง (+1)</div>
                     </div>
                     <div>
                       <div className="text-2xl font-black text-rose-400">{unknownCards.length}</div>
-                      <div className="text-[11px] text-neutral-400">ต้องทบทวนเพิ่ม</div>
+                      <div className="text-[11px] text-neutral-400">ตอบผิด (+0)</div>
                     </div>
                     <div>
                       <div className="text-2xl font-black text-indigo-400">
                         {Math.round((knownCards.length / activeCards.length) * 100)}%
                       </div>
-                      <div className="text-[11px] text-neutral-400">Mastery Rate</div>
+                      <div className="text-[11px] text-neutral-400">ความถูกต้อง</div>
                     </div>
                   </div>
                 )}
@@ -756,7 +885,7 @@ function PlayGameContent() {
               {/* Submit Score Box */}
               {!scoreSubmitted ? (
                 <div className="bg-indigo-950/40 border border-indigo-500/50 p-4 rounded-2xl space-y-3 text-left">
-                  <span className="text-xs font-semibold text-indigo-300">📝 ส่งผลการเรียนรู้ของคุณเข้าสู่ระบบ Analytics:</span>
+                  <span className="text-xs font-semibold text-indigo-300">📝 ส่งผลการเรียนรู้ของคุณเข้าสู่ระบบ Leaderboard:</span>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -778,10 +907,99 @@ function PlayGameContent() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-emerald-950/40 border border-emerald-500/50 p-3.5 rounded-2xl text-center text-xs text-emerald-300 font-semibold">
-                  ✓ บันทึกผลคะแนนและสถิติเข้าสู่ระบบเรียบร้อยแล้ว!
+                <div className="bg-emerald-950/40 border border-emerald-500/50 p-3.5 rounded-2xl text-center text-xs text-emerald-300 font-semibold flex items-center justify-center gap-2">
+                  <span>✓ บันทึกคะแนนและอัปเดต Leaderboard สำเร็จแล้ว!</span>
                 </div>
               )}
+
+              {/* 🏆 LEADERBOARD TOP 5 COMPONENT */}
+              <div className="bg-neutral-950/80 border border-neutral-800 rounded-3xl p-5 md:p-6 text-left space-y-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🏅</span>
+                    <h3 className="font-extrabold text-sm text-white">ตารางอันดับผู้นำ (Top 5 Hall of Fame)</h3>
+                  </div>
+                  <button
+                    onClick={fetchLeaderboard}
+                    className="text-[11px] text-neutral-400 hover:text-indigo-300 transition-colors"
+                  >
+                    🔄 รีเฟรชอันดับ
+                  </button>
+                </div>
+
+                {loadingLeaderboard ? (
+                  <div className="text-center py-6 text-neutral-500 text-xs">กำลังโหลดอันดับ...</div>
+                ) : leaderboard.length > 0 ? (
+                  <div className="space-y-2">
+                    {leaderboard.map((item, index) => {
+                      const name = item.student_name || item.playerName || item.player_name || 'ผู้เรียน';
+                      const isMe = scoreSubmitted && name.trim().toLowerCase() === playerName.trim().toLowerCase();
+                      const scoreVal = item.score ?? 0;
+                      const totalVal = item.total_questions ?? item.total_score ?? '-';
+                      const timeVal = item.time_taken_seconds ?? item.time_taken ?? item.timeTaken ?? 0;
+
+                      // เหรียญและสีตกแต่งตามอันดับ
+                      let medal = `#${index + 1}`;
+                      let rankBadge = 'bg-neutral-900 text-neutral-400 border-neutral-800';
+                      let rowHighlight = 'bg-neutral-900/40 border-neutral-800/80';
+
+                      if (index === 0) {
+                        medal = '🥇';
+                        rankBadge = 'bg-amber-950/80 text-amber-300 border-amber-500/60 font-black';
+                        rowHighlight = 'bg-gradient-to-r from-amber-950/30 to-neutral-900/60 border-amber-500/40';
+                      } else if (index === 1) {
+                        medal = '🥈';
+                        rankBadge = 'bg-slate-900 text-slate-200 border-slate-400/60 font-black';
+                        rowHighlight = 'bg-neutral-900/60 border-slate-700/60';
+                      } else if (index === 2) {
+                        medal = '🥉';
+                        rankBadge = 'bg-amber-950/40 text-amber-500 border-amber-700/60 font-black';
+                        rowHighlight = 'bg-neutral-900/60 border-neutral-800';
+                      }
+
+                      if (isMe) {
+                        rowHighlight = 'bg-indigo-950/50 border-indigo-500 ring-1 ring-indigo-500/50';
+                      }
+
+                      return (
+                        <div
+                          key={index}
+                          className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${rowHighlight}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`w-8 h-8 rounded-xl border flex items-center justify-center text-xs ${rankBadge}`}>
+                              {medal}
+                            </span>
+                            <div>
+                              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <span>{name}</span>
+                                {isMe && (
+                                  <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-bold">
+                                    (คุณ)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-neutral-400 font-mono">
+                                ⏱️ {formatTime(timeVal)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="font-mono font-black text-sm text-emerald-400">
+                              {scoreVal} <span className="text-[10px] text-neutral-500 font-normal">/ {totalVal}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-neutral-500 text-xs">
+                    ยังไม่มีข้อมูลอันดับในเกมนี้ เป็นคนแรกที่พิชิต Leaderboard เลย!
+                  </div>
+                )}
+              </div>
 
               {/* Review Section */}
               {activeQuestions.length > 0 && (
@@ -803,7 +1021,7 @@ function PlayGameContent() {
                 </div>
               )}
 
-              {/* Reset Game Button (Shuffles on Click) */}
+              {/* Reset Game Button */}
               <button
                 onClick={() => {
                   if (activeQuestions.length > 0) resetQuizGame();
