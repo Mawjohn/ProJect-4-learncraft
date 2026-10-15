@@ -3,6 +3,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
+import LearnCraftLogo from '@/components/LearnCraftLogo';
 
 export default function HomePage() {
   const [games, setGames] = useState([]);
@@ -11,6 +12,9 @@ export default function HomePage() {
 
   // State สำหรับเปิดดู QR Code
   const [qrModalData, setQrModalData] = useState(null);
+
+  // State สำหรับเปิด-ปิดเมนู Dropdown ทีละการ์ด
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
 
   const fetchGames = async () => {
     try {
@@ -28,6 +32,11 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchGames();
+
+    // ดักจับการคลิกนอกเมนูเพื่อปิด Dropdown อัตโนมัติ
+    const handleGlobalClick = () => setActiveDropdownId(null);
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
   const handleCopyLink = (gameId) => {
@@ -82,14 +91,20 @@ export default function HomePage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 selection:bg-indigo-500 selection:text-white relative">
       <nav className="border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40">
         <div className="w-full px-6 md:px-10 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-indigo-500/20">
-              L
-            </div>
-            <span className="font-extrabold text-lg tracking-tight text-white">
-              Learn<span className="text-indigo-400">Craft</span>
-            </span>
-          </div>
+          {/* โลโก้ LearnCraft ดีไซน์สไตล์เกม */}
+<div className="flex items-center gap-2 select-none">
+  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center text-lg shadow-lg shadow-indigo-500/30 border border-indigo-400/30">
+    🎮
+  </div>
+  <div className="flex flex-col leading-none">
+    <span className="font-black text-lg tracking-wider text-white">
+      LEARN<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">CRAFT</span>
+    </span>
+    <span className="text-[9px] text-indigo-300 font-mono tracking-widest uppercase">
+      Interactive Play
+    </span>
+  </div>
+</div>
 
           <div className="flex items-center gap-3">
             {status === 'loading' ? (
@@ -234,61 +249,96 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-neutral-800/80 flex items-center gap-1.5 sm:gap-2">
+                {/* แถบปุ่มจัดการกิจกรรม */}
+                <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-1.5 sm:gap-2">
+                  {/* ปุ่มเข้าเล่นหลัก */}
                   <Link
                     href={`/play?id=${g.id}`}
                     target="_blank"
-                    className="flex-1 py-2 px-2.5 bg-indigo-600/90 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl text-center transition-all shadow-md whitespace-nowrap flex items-center justify-center gap-1"
+                    className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                   >
                     <span>เข้าเล่น</span>
                     <span>🎮</span>
                   </Link>
 
-                  <button
-                    onClick={() => handleOpenQR(g)}
-                    className="p-2 bg-neutral-800 hover:bg-neutral-700 hover:text-indigo-400 text-neutral-300 rounded-xl transition-all shrink-0"
-                    title="เปิด QR Code สำหรับฉายหน้าห้อง"
-                  >
-                    📱
-                  </button>
+                  {/* กลุ่มเครื่องมือ */}
+                  <div className="flex items-center gap-1">
+                    {/* ปุ่มเปิด QR Code */}
+                    <button
+                      onClick={() => handleOpenQR(g)}
+                      className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
+                      title="เปิด QR Code สำหรับฉายหน้าห้อง"
+                    >
+                      📱
+                    </button>
 
-                  {session && (
-                    <>
-                      <Link
-                        href={`/create?edit=${g.id}`}
-                        className="p-2 bg-neutral-800 hover:bg-indigo-950 hover:border-indigo-700 border border-neutral-800 hover:text-indigo-300 text-neutral-300 rounded-xl transition-all shrink-0"
-                        title="แก้ไขเนื้อหาและคำถาม"
-                      >
-                        ✏️
-                      </Link>
+                    {/* ปุ่มคัดลอกลิงก์แชร์ */}
+                    <button
+                      onClick={() => handleCopyLink(g.id)}
+                      className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
+                      title="คัดลอกลิงก์สำหรับแชร์"
+                    >
+                      🔗
+                    </button>
 
-                      <Link
-                        href={`/analytics?id=${g.id}`}
-                        target="_blank"
-                        className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl transition-all shrink-0"
-                        title="ดูสถิติ Analytics"
-                      >
-                        📊
-                      </Link>
+                    {/* ส่วนของผู้สอนเมื่อล็อกอิน: ดูสถิติ และ เมนูเพิ่มเติม */}
+                    {session && (
+                      <>
+                        <Link
+                          href={`/analytics?id=${g.id}`}
+                          target="_blank"
+                          className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
+                          title="ดูสถิติ Analytics"
+                        >
+                          📊
+                        </Link>
 
-                      <button
-                        onClick={() => handleDeleteGame(g.id, g.title)}
-                        className="p-2 bg-neutral-800 hover:bg-rose-950 hover:border-rose-700 border border-neutral-800 hover:text-rose-400 text-neutral-400 rounded-xl transition-all shrink-0"
-                        title="ลบเกมนี้"
-                      >
-                        🗑️
-                      </button>
-                    </>
-                  )}
+                        {/* เมนูตัวเลือกเพิ่มเติม (คลิกเปิด-ปิดแบบ Dropdown) */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdownId(activeDropdownId === g.id ? null : g.id);
+                            }}
+                            className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0 font-bold"
+                            title="ตัวเลือกเพิ่มเติม"
+                          >
+                            ⋮
+                          </button>
 
-                  <button
-                    onClick={() => handleCopyLink(g.id)}
-                    className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl transition-all shrink-0"
-                    title="คัดลอกลิงก์สำหรับแชร์"
-                  >
-                    🔗
-                  </button>
+                          {activeDropdownId === g.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex flex-col absolute right-0 bottom-full mb-1.5 w-32 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl py-1 z-30 text-xs animate-in fade-in zoom-in-95 duration-100"
+                            >
+                              <Link
+                                href={`/create?edit=${g.id}`}
+                                onClick={() => setActiveDropdownId(null)}
+                                className="flex items-center gap-2 px-3 py-2 text-neutral-200 hover:bg-neutral-800 hover:text-white transition-colors"
+                              >
+                                <span>✏️</span>
+                                <span>แก้ไขเนื้อหา</span>
+                              </Link>
+                              <div className="border-t border-neutral-800 my-0.5"></div>
+                              <button
+                                onClick={() => {
+                                  setActiveDropdownId(null);
+                                  handleDeleteGame(g.id, g.title);
+                                }}
+                                className="flex items-center gap-2 px-3 py-2 text-rose-400 hover:bg-rose-500/10 transition-colors text-left w-full"
+                              >
+                                <span>🗑️</span>
+                                <span>ลบเกมนี้</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
+
               </div>
             ))}
           </div>
