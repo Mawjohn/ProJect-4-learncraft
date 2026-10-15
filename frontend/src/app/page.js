@@ -10,10 +10,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const { data: session, status } = useSession();
 
-  // State สำหรับเปิดดู QR Code
   const [qrModalData, setQrModalData] = useState(null);
-
-  // State สำหรับเปิด-ปิดเมนู Dropdown ทีละการ์ด
   const [activeDropdownId, setActiveDropdownId] = useState(null);
 
   const fetchGames = async () => {
@@ -32,8 +29,6 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchGames();
-
-    // ดักจับการคลิกนอกเมนูเพื่อปิด Dropdown อัตโนมัติ
     const handleGlobalClick = () => setActiveDropdownId(null);
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
@@ -88,314 +83,207 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 selection:bg-indigo-500 selection:text-white relative">
-      <nav className="border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="w-full px-6 md:px-10 h-16 flex items-center justify-between">
-          {/* โลโก้ LearnCraft ดีไซน์สไตล์เกม */}
-<div className="flex items-center gap-2 select-none">
-  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center text-lg shadow-lg shadow-indigo-500/30 border border-indigo-400/30">
-    🎮
-  </div>
-  <div className="flex flex-col leading-none">
-    <span className="font-black text-lg tracking-wider text-white">
-      LEARN<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">CRAFT</span>
-    </span>
-    <span className="text-[9px] text-indigo-300 font-mono tracking-widest uppercase">
-      Interactive Play
-    </span>
-  </div>
-</div>
+    <div className="min-h-screen space-theme-bg text-neutral-100 relative pb-20">
+      {/* Navbar ตามดีไซน์ */}
+      <nav className="w-full px-6 md:px-12 py-5 flex items-center justify-between sticky top-0 z-40 bg-black/40 backdrop-blur-sm">
+        <LearnCraftLogo size="md" />
 
-          <div className="flex items-center gap-3">
-            {status === 'loading' ? (
-              <div className="text-xs text-neutral-400">กำลังโหลด...</div>
-            ) : session ? (
-              <div className="flex items-center gap-3">
-                {session.user?.image && (
-                  <img
-                    src={session.user.image}
-                    alt={session.user.name || 'User'}
-                    className="w-8 h-8 rounded-full border border-neutral-700 object-cover"
-                  />
-                )}
-                <span className="text-xs text-neutral-200 hidden sm:inline">
-                  {session.user?.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => signOut()}
-                  className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-rose-400 hover:text-rose-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-                >
-                  ออกจากระบบ
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => signIn('google')}
-                className="px-4 py-2 bg-white hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl shadow-md flex items-center gap-2 transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>เข้าสู่ระบบด้วย Google</span>
-              </button>
-            )}
-
-            {session && (
+        <div className="flex items-center gap-3">
+          {status === 'loading' ? (
+            <div className="text-xs text-neutral-400">กำลังโหลด...</div>
+          ) : session ? (
+            <div className="flex items-center gap-3">
               <Link
                 href="/create"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs sm:text-sm font-bold rounded-full border border-black shadow-md transition-all"
               >
-                <span>+ สร้างมินิเกมใหม่</span>
+                สร้างมินิเกม
               </Link>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="px-5 py-2.5 bg-[#4f46e5] hover:bg-rose-600 text-white text-xs sm:text-sm font-bold rounded-full border border-black shadow-md transition-all cursor-pointer"
+              >
+                ออกจากระบบ
+              </button>
+              {session.user?.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name || 'Profile'}
+                  className="w-10 h-10 rounded-full border-2 border-indigo-400 object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center">
+                  Profile
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => signIn('google')}
+              className="px-5 py-2.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs sm:text-sm font-bold rounded-full border border-black shadow-lg transition-all cursor-pointer"
+            >
+              Sign in with Google
+            </button>
+          )}
         </div>
       </nav>
 
-      <section className="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center space-y-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-800 text-indigo-400 text-xs font-bold tracking-wide">
-          <span>✨ Gamified Learning & AI Platform</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-tight">
-          เปลี่ยนเนื้อหาบทเรียนให้เป็น <br />
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400">
+      {/* Hero Banner ตามแบบ PDF หน้า 1 */}
+      <section className="max-w-4xl mx-auto px-6 pt-8 pb-10">
+        <div className="bg-[#38363a]/90 border border-neutral-600/50 rounded-3xl py-12 px-6 text-center shadow-2xl">
+          <h1 className="text-2xl sm:text-4xl font-bold text-white leading-relaxed tracking-wide">
+            เปลี่ยนเนื้อหาบทเรียนให้เป็น <br />
             มินิเกมและใบงานอัจฉริยะ
-          </span>
-        </h1>
-
-        <p className="text-sm sm:text-base text-neutral-400 max-w-2xl mx-auto leading-relaxed">
-          แพลตฟอร์มช่วยครูผู้สอนและนักเรียนสกัดเนื้อหาจากเอกสาร สร้างเกม Quiz, แฟลชการ์ด 3D, เกมจับคู่ พร้อมแชร์ผ่าน QR Code และระบบวิเคราะห์ผลการเรียนรู้
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-          {session && (
-            <Link
-              href="/create"
-              className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-              <span>🚀 เริ่มต้นสร้างสื่อการสอน</span>
-            </Link>
-          )}
-          <a
-            href="#library"
-            className="w-full sm:w-auto px-6 py-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold text-sm rounded-2xl transition-all"
-          >
-            📚 คลังมินิเกมที่สร้างไว้
-          </a>
+          </h1>
         </div>
       </section>
 
-      <section id="library" className="max-w-6xl mx-auto px-6 py-12 space-y-6">
-        <div className="flex justify-between items-end border-b border-neutral-800 pb-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">My Activity Library</span>
-            <h2 className="text-2xl font-black text-white mt-1">คลังมินิเกมและสื่อการเรียนรู้</h2>
+      {/* ส่วนคลังมินิเกม */}
+      <section id="library" className="max-w-6xl mx-auto px-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="px-6 py-2 bg-[#38363a] rounded-full text-white font-bold text-sm sm:text-base shadow">
+            คลังมินิเกม
           </div>
           <button
             onClick={fetchGames}
-            className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors flex items-center gap-1"
+            className="text-xs text-neutral-300 hover:text-white bg-[#38363a] px-4 py-2 rounded-full transition-colors"
           >
             🔄 รีเฟรชรายการ
           </button>
         </div>
 
         {loading ? (
-          <div className="text-center py-16 text-neutral-500 text-sm">กำลังโหลดคลังเกม...</div>
+          <div className="text-center py-16 text-neutral-400 text-sm">กำลังโหลดคลังเกม...</div>
         ) : games.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {games.map((g) => (
               <div
                 key={g.id}
-                className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 group transition-all"
+                className="bg-[#38363a]/95 border border-neutral-600/40 rounded-3xl p-6 shadow-xl flex flex-col justify-between min-h-[190px] transition-transform hover:scale-[1.01]"
               >
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
-                      g.game_type === 'matching' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      g.game_type === 'flashcard' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
-                      'bg-indigo-950 text-indigo-400 border border-indigo-800'
-                    }`}>
-                      {g.game_type === 'matching' ? 'Matching 🧩' : g.game_type === 'flashcard' ? 'Flashcard 🎴' : 'Quiz 🎯'}
+                  <div className="flex justify-between items-center text-xs text-neutral-300">
+                    <span className="font-bold text-indigo-300">
+                      {g.game_type === 'matching' ? 'เกมจับคู่' : g.game_type === 'flashcard' ? 'เกมการ์ด' : 'ตอบคำถาม'}
                     </span>
-                    <span className="text-[11px] text-neutral-500 font-mono">ID: {g.id}</span>
+                    <span className="font-mono text-[11px] opacity-75">
+                      📝 {g.total_items} ข้อ • 👥 {g.total_players} คน
+                    </span>
                   </div>
-
-                  <h3 className="font-bold text-white text-base line-clamp-2 pt-1 group-hover:text-indigo-300 transition-colors">
+                  <h3 className="font-bold text-white text-lg line-clamp-2 pt-1">
                     {g.title}
                   </h3>
-
-                  <div className="flex items-center gap-3 text-xs text-neutral-400 pt-1">
-                    <span>📝 {g.total_items} ข้อ/คู่</span>
-                    <span>•</span>
-                    <span>👥 เล่นแล้ว {g.total_players} คน</span>
-                  </div>
                 </div>
 
-                {/* แถบปุ่มจัดการกิจกรรม */}
-                <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-1.5 sm:gap-2">
-                  {/* ปุ่มเข้าเล่นหลัก */}
+                {/* แถบปุ่มด้านล่างของการ์ด ตามดีไซน์ */}
+                <div className="pt-5 flex items-center gap-2.5">
                   <Link
                     href={`/play?id=${g.id}`}
-                    target="_blank"
-                    className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                    className="flex-1 py-2.5 px-4 bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-sm rounded-2xl border border-black flex items-center justify-center transition-colors shadow"
                   >
-                    <span>เข้าเล่น</span>
-                    <span>🎮</span>
+                    เข้าเล่น
                   </Link>
 
-                  {/* กลุ่มเครื่องมือ */}
-                  <div className="flex items-center gap-1">
-                    {/* ปุ่มเปิด QR Code */}
-                    <button
-                      onClick={() => handleOpenQR(g)}
-                      className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
-                      title="เปิด QR Code สำหรับฉายหน้าห้อง"
-                    >
-                      📱
-                    </button>
+                  <button
+                    onClick={() => handleOpenQR(g)}
+                    className="w-11 h-11 bg-[#4f46e5] hover:bg-[#4338ca] text-white rounded-xl border border-black flex items-center justify-center transition-colors shadow shrink-0"
+                    title="แสดง QR Code"
+                  >
+                    📱
+                  </button>
 
-                    {/* ปุ่มคัดลอกลิงก์แชร์ */}
-                    <button
-                      onClick={() => handleCopyLink(g.id)}
-                      className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
-                      title="คัดลอกลิงก์สำหรับแชร์"
-                    >
-                      🔗
-                    </button>
+                  <button
+                    onClick={() => handleCopyLink(g.id)}
+                    className="w-11 h-11 bg-[#4f46e5] hover:bg-[#4338ca] text-white rounded-xl border border-black flex items-center justify-center transition-colors shadow shrink-0"
+                    title="คัดลอกลิงก์"
+                  >
+                    🔗
+                  </button>
 
-                    {/* ส่วนของผู้สอนเมื่อล็อกอิน: ดูสถิติ และ เมนูเพิ่มเติม */}
-                    {session && (
-                      <>
-                        <Link
-                          href={`/analytics?id=${g.id}`}
-                          target="_blank"
-                          className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0"
-                          title="ดูสถิติ Analytics"
+                  {session && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdownId(activeDropdownId === g.id ? null : g.id);
+                        }}
+                        className="w-11 h-11 bg-[#4f46e5] hover:bg-[#4338ca] text-white rounded-xl border border-black flex items-center justify-center transition-colors shadow shrink-0 font-bold"
+                        title="จัดการเกม"
+                      >
+                        ⋮
+                      </button>
+
+                      {activeDropdownId === g.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex flex-col absolute right-0 bottom-full mb-2 w-36 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl py-1.5 z-30 text-xs"
                         >
-                          📊
-                        </Link>
-
-                        {/* เมนูตัวเลือกเพิ่มเติม (คลิกเปิด-ปิดแบบ Dropdown) */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveDropdownId(activeDropdownId === g.id ? null : g.id);
-                            }}
-                            className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-xl transition-colors shrink-0 font-bold"
-                            title="ตัวเลือกเพิ่มเติม"
+                          <Link
+                            href={`/analytics?id=${g.id}`}
+                            className="flex items-center gap-2 px-3 py-2 text-neutral-200 hover:bg-neutral-800"
                           >
-                            ⋮
+                            <span>📊</span>
+                            <span>ดูสถิติผู้เล่น</span>
+                          </Link>
+                          <Link
+                            href={`/create?edit=${g.id}`}
+                            onClick={() => setActiveDropdownId(null)}
+                            className="flex items-center gap-2 px-3 py-2 text-neutral-200 hover:bg-neutral-800"
+                          >
+                            <span>✏️</span>
+                            <span>แก้ไขเนื้อหา</span>
+                          </Link>
+                          <div className="border-t border-neutral-800 my-1"></div>
+                          <button
+                            onClick={() => {
+                              setActiveDropdownId(null);
+                              handleDeleteGame(g.id, g.title);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-rose-400 hover:bg-rose-500/10 text-left w-full"
+                          >
+                            <span>🗑️</span>
+                            <span>ลบเกมนี้</span>
                           </button>
-
-                          {activeDropdownId === g.id && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex flex-col absolute right-0 bottom-full mb-1.5 w-32 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl py-1 z-30 text-xs animate-in fade-in zoom-in-95 duration-100"
-                            >
-                              <Link
-                                href={`/create?edit=${g.id}`}
-                                onClick={() => setActiveDropdownId(null)}
-                                className="flex items-center gap-2 px-3 py-2 text-neutral-200 hover:bg-neutral-800 hover:text-white transition-colors"
-                              >
-                                <span>✏️</span>
-                                <span>แก้ไขเนื้อหา</span>
-                              </Link>
-                              <div className="border-t border-neutral-800 my-0.5"></div>
-                              <button
-                                onClick={() => {
-                                  setActiveDropdownId(null);
-                                  handleDeleteGame(g.id, g.title);
-                                }}
-                                className="flex items-center gap-2 px-3 py-2 text-rose-400 hover:bg-rose-500/10 transition-colors text-left w-full"
-                              >
-                                <span>🗑️</span>
-                                <span>ลบเกมนี้</span>
-                              </button>
-                            </div>
-                          )}
                         </div>
-                      </>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-neutral-900/40 border border-dashed border-neutral-800 rounded-3xl p-12 text-center space-y-3">
+          <div className="bg-[#38363a]/60 border border-dashed border-neutral-600 rounded-3xl p-12 text-center space-y-3">
             <div className="text-4xl">📦</div>
-            <div className="text-neutral-300 font-bold text-sm">ยังไม่มีมินิเกมในคลังของคุณ</div>
+            <div className="text-neutral-200 font-bold text-sm">ยังไม่มีมินิเกมในคลังของคุณ</div>
           </div>
         )}
       </section>
 
-      {/* QR Code Presentation Modal */}
+      {/* QR Code Modal */}
       {qrModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl space-y-5 text-center relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#38363a] border border-neutral-600 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl space-y-5 text-center relative">
             <button
               onClick={() => setQrModalData(null)}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-white text-sm p-2 rounded-xl bg-neutral-800/60"
+              className="absolute top-4 right-4 text-neutral-300 hover:text-white text-sm p-2 rounded-xl bg-black/40"
             >
               ✕
             </button>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 px-2.5 py-1 rounded-md border border-indigo-800">
-                Scan to Play
-              </span>
-              <h3 className="text-lg font-bold text-white line-clamp-1 pt-1">{qrModalData.title}</h3>
-              <p className="text-xs text-neutral-400">สแกน QR Code ด้วยกล้องมือถือเพื่อเข้าสู่เกม</p>
+            <h3 className="text-lg font-bold text-white line-clamp-1 pt-2">{qrModalData.title}</h3>
+            <div className="bg-white p-4 rounded-2xl inline-block">
+              <QRCodeCanvas id="qr-code-canvas" value={qrModalData.url} size={220} />
             </div>
-
-            <div className="bg-white p-4 rounded-2xl inline-block shadow-inner">
-              <QRCodeCanvas
-                id="qr-code-canvas"
-                value={qrModalData.url}
-                size={220}
-                bgColor="#ffffff"
-                fgColor="#000000"
-                level="Q"
-                includeMargin={false}
-              />
-            </div>
-
             <div className="space-y-2">
               <button
                 onClick={handleDownloadQR}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-3 bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-xs rounded-xl border border-black"
               >
-                <span>💾 ดาวน์โหลดรูปภาพ QR Code (.PNG)</span>
-              </button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(qrModalData.url);
-                  alert('คัดลอกลิงก์สำเร็จ!');
-                }}
-                className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs rounded-xl transition-all"
-              >
-                🔗 คัดลอกลิงก์
+                💾 ดาวน์โหลด QR Code (.PNG)
               </button>
             </div>
           </div>
