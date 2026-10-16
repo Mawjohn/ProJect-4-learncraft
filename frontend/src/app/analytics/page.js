@@ -13,9 +13,13 @@ function AnalyticsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // 1. เพิ่มตัวแปรสำหรับรับค่า API_URL จาก Environment Variable ตรงนี้
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}/analytics`);
+      // 2. เปลี่ยนลิงก์ fetch ให้เรียกใช้งาน API_URL
+      const res = await fetch(`${API_URL}/api/games/${gameId}/analytics`);
       const result = await res.json();
       if (result.status === 'success') {
         setAnalytics(result);

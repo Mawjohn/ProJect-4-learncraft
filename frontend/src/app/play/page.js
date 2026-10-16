@@ -100,6 +100,9 @@ function PlayGameContent() {
   const [error, setError] = useState('');
   const [game, setGame] = useState(null);
 
+  // 1. เพิ่มตัวแปรสำหรับรับค่า API_URL 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
   // ⏱️ Timer State
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [timerActive, setTimerActive] = useState(true);
@@ -161,7 +164,8 @@ function PlayGameContent() {
     if (!gameId) return;
     setLoadingLeaderboard(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`);
+      // 2. ใช้ API_URL แทน 127.0.0.1:8000
+      const res = await fetch(`${API_URL}/api/games/${gameId}`);
       const result = await res.json();
       if (result.status === 'success' && result.data && result.data.scores) {
         const rawScores = result.data.scores || [];
@@ -191,7 +195,8 @@ function PlayGameContent() {
 
     const fetchGame = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`);
+        // 3. ใช้ API_URL แทน 127.0.0.1:8000
+        const res = await fetch(`${API_URL}/api/games/${gameId}`);
         const result = await res.json();
 
         if (result.status === 'success' && result.data) {
@@ -485,7 +490,8 @@ function PlayGameContent() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/games/score', {
+      // 4. ใช้ API_URL แทน 127.0.0.1:8000
+      const res = await fetch(`${API_URL}/api/games/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -88,6 +88,9 @@ function CreateGameContent() {
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // กำหนดตัวแปร API URL ตรงนี้เลย เพื่อใช้ร่วมกันทั้งหน้า
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
   const fetchGame = async () => {
     if (!gameId) {
       setGame({
@@ -110,7 +113,7 @@ function CreateGameContent() {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`, {
+      const res = await fetch(`${API_URL}/api/games/${gameId}`, {
         cache: 'no-store',
       });
       const result = await res.json();
@@ -234,8 +237,8 @@ function CreateGameContent() {
     setSaving(true);
     try {
       const url = gameId
-        ? `http://127.0.0.1:8000/api/games/${gameId}`
-        : `http://127.0.0.1:8000/api/games`;
+        ? `${API_URL}/api/games/${gameId}`
+        : `${API_URL}/api/games`;
       const method = gameId ? 'PUT' : 'POST';
 
       // ส่งครบทั้งรูปแบบซ้อนใน data และรูปแบบระดับบนสุดเพื่อให้ Backend ทุกรูปแบบรับค่าได้ครบ
