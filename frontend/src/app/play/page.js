@@ -127,13 +127,16 @@ function PlayGameContent() {
   const [shuffledDefinitions, setShuffledDefinitions] = useState([]);
   const [selectedTerm, setSelectedTerm] = useState(null);
   const [selectedDef, setSelectedDef] = useState(null);
-  const [showMatchConfirm, setShowMatchConfirm] = useState(false);
   const [userMatches, setUserMatches] = useState({});
-  const [pairStatus, setPairStatus] = useState({}); // { id: 'correct' | 'wrong' }
-  const [defStatus, setDefStatus] = useState({}); // { id: 'correct' | 'wrong' }
   const [matchedPairsCount, setMatchedPairsCount] = useState(0);
   const [matchingWrongCount, setMatchingWrongCount] = useState(0);
+  const [wrongTermId, setWrongTermId] = useState(null);
+  const [wrongDefId, setWrongDefId] = useState(null);
   const [matchingFinished, setMatchingFinished] = useState(false);
+
+  // ✨ State สำหรับ Popup โชว์คู่ที่จับคู่สำเร็จ (2s โชว์ + 600ms เฟดจางออก)
+  const [matchedPopup, setMatchedPopup] = useState(null);
+  const [popupVisible, setPopupVisible] = useState(false);
 
   // 📝 Score Submission & 🏆 Leaderboard State
   const [playerName, setPlayerName] = useState('');
@@ -250,7 +253,6 @@ function PlayGameContent() {
     });
   };
 
-  // แปลงเวลาเป็น MM:SS ตามแบบใน PDF (เช่น 00:00)
   const formatClock = (secs) => {
     const m = String(Math.floor(secs / 60)).padStart(2, '0');
     const s = String(secs % 60).padStart(2, '0');
@@ -258,15 +260,20 @@ function PlayGameContent() {
   };
 
   // ==========================================
-  // 🎯 QUIZ LOGIC (คลิกตอบแล้วแสดงสีเขียว/แดง พร้อมวงกลมม่วงตรงกลาง)
+  // 🎯 QUIZ LOGIC
   // ==========================================
   const handleSelectQuizOption = (optionIndex) => {
     if (isConfirmed) return;
+    playSound('click');
     setSelectedOption(optionIndex);
+  };
+
+  const handleConfirmAnswer = () => {
+    if (selectedOption === null || isConfirmed) return;
     setIsConfirmed(true);
 
     const currentQuestion = activeQuestions[currentQuizIndex];
-    const isCorrect = optionIndex === currentQuestion.answer;
+    const isCorrect = selectedOption === currentQuestion.answer;
 
     if (isCorrect) {
       playSound('correct');
@@ -280,26 +287,26 @@ function PlayGameContent() {
       ...prev,
       {
         question: currentQuestion.question,
-        userAnswer: optionIndex,
+        userAnswer: selectedOption,
         correctAnswer: currentQuestion.answer,
         isCorrect,
         explanation: currentQuestion.explanation,
       },
     ]);
+  };
 
-    // หน่วงเวลาให้เห็นสีเขียว/แดง และวงกลมสีม่วงตรงกลาง ก่อนไปข้อถัดไปอัตโนมัติ
-    setTimeout(() => {
-      const total = activeQuestions.length;
-      if (currentQuizIndex + 1 < total) {
-        setCurrentQuizIndex((prev) => prev + 1);
-        setSelectedOption(null);
-        setIsConfirmed(false);
-      } else {
-        setQuizFinished(true);
-        setTimerActive(false);
-        triggerConfetti();
-      }
-    }, 1200);
+  const handleNextQuestion = () => {
+    const total = activeQuestions.length;
+    if (currentQuizIndex + 1 < total) {
+      setCurrentQuizIndex((prev) => prev + 1);
+      setSelectedOption(null);
+      setIsConfirmed(false);
+      playSound('click');
+    } else {
+      setQuizFinished(true);
+      setTimerActive(false);
+      setTimeout(() => triggerConfetti(), 300);
+    }
   };
 
   const resetQuizGame = () => {
@@ -357,82 +364,94 @@ function PlayGameContent() {
   };
 
   // ==========================================
-  // 🧩 MATCHING GAME LOGIC (ตามแบบ PDF: เลือกซ้าย-ขวา -> ป๊อปอัปยืนยัน -> แสดงสีเขียว/แดง)
+  // 🧩 MATCHING GAME LOGIC
   // ==========================================
+  const evaluateMatchPair = (termId, defId) => {
+    if (termId === defId) {
+      playSound('match');
+
+      const matchedItem = activePairs.find((p) => p.id === termId);
+      const isFinalPair = matchedPairsCount + 1 === activePairs.length;
+
+      if (isFinalPair) {
+        setTimerActive(false);
+      }
+
+      if (matchedItem) {
+        setMatchedPopup({
+          term: matchedItem.term,
+          definition: matchedItem.definition,
+        });
+
+        setTimeout(() => {
+          setPopupVisible(true);
+        }, 20);
+
+        setTimeout(() => {
+          setPopupVisible(false);
+        }, 2000);
+
+        setTimeout(() => {
+          setMatchedPopup(null);
+          if (isFinalPair) {
+            setMatchingFinished(true);
+            triggerConfetti();
+          }
+        }, 2600);
+      }
+
+      const newMatches = { ...userMatches, [termId]: defId };
+      setUserMatches(newMatches);
+      setMatchedPairsCount((prev) => prev + 1);
+      setSelectedTerm(null);
+      setSelectedDef(null);
+    } else {
+      playSound('wrong');
+      setMatchingWrongCount((prev) => prev + 1);
+      setWrongTermId(termId);
+      setWrongDefId(defId);
+
+      setTimeout(() => {
+        setWrongTermId(null);
+        setWrongDefId(null);
+        setSelectedTerm(null);
+        setSelectedDef(null);
+      }, 600);
+    }
+  };
+
   const handleSelectTerm = (termId) => {
-    if (userMatches[termId] || pairStatus[termId] === 'correct') return;
+    if (userMatches[termId] || wrongTermId || wrongDefId) return;
     playSound('click');
-    setSelectedTerm(termId);
+
+    if (selectedTerm === termId) {
+      setSelectedTerm(null);
+      return;
+    }
+
     if (selectedDef !== null) {
-      setShowMatchConfirm(true);
+      setSelectedTerm(termId);
+      evaluateMatchPair(termId, selectedDef);
+    } else {
+      setSelectedTerm(termId);
     }
   };
 
   const handleSelectDefinition = (defId) => {
-    if (Object.values(userMatches).includes(defId) || defStatus[defId] === 'correct') return;
+    if (Object.values(userMatches).includes(defId) || wrongTermId || wrongDefId) return;
     playSound('click');
-    setSelectedDef(defId);
+
+    if (selectedDef === defId) {
+      setSelectedDef(null);
+      return;
+    }
+
     if (selectedTerm !== null) {
-      setShowMatchConfirm(true);
-    }
-  };
-
-  const handleConfirmMatchModal = () => {
-    setShowMatchConfirm(false);
-    if (selectedTerm === null || selectedDef === null) return;
-
-    const tId = selectedTerm;
-    const dId = selectedDef;
-
-    if (tId === dId) {
-      playSound('match');
-      setPairStatus((prev) => ({ ...prev, [tId]: 'correct' }));
-      setDefStatus((prev) => ({ ...prev, [dId]: 'correct' }));
-
-      const newMatches = { ...userMatches, [tId]: dId };
-      setUserMatches(newMatches);
-      const nextCount = matchedPairsCount + 1;
-      setMatchedPairsCount(nextCount);
-
-      setSelectedTerm(null);
-      setSelectedDef(null);
-
-      if (nextCount >= activePairs.length) {
-        setTimerActive(false);
-        setTimeout(() => {
-          setMatchingFinished(true);
-          triggerConfetti();
-        }, 1000);
-      }
+      setSelectedDef(defId);
+      evaluateMatchPair(selectedTerm, defId);
     } else {
-      playSound('wrong');
-      setMatchingWrongCount((prev) => prev + 1);
-      setPairStatus((prev) => ({ ...prev, [tId]: 'wrong' }));
-      setDefStatus((prev) => ({ ...prev, [dId]: 'wrong' }));
-
-      setSelectedTerm(null);
-      setSelectedDef(null);
-
-      setTimeout(() => {
-        setPairStatus((prev) => {
-          const copy = { ...prev };
-          if (copy[tId] === 'wrong') delete copy[tId];
-          return copy;
-        });
-        setDefStatus((prev) => {
-          const copy = { ...prev };
-          if (copy[dId] === 'wrong') delete copy[dId];
-          return copy;
-        });
-      }, 1000);
+      setSelectedDef(defId);
     }
-  };
-
-  const handleCancelMatchModal = () => {
-    playSound('click');
-    setShowMatchConfirm(false);
-    setSelectedTerm(null);
-    setSelectedDef(null);
   };
 
   const resetMatchingGame = () => {
@@ -443,13 +462,14 @@ function PlayGameContent() {
     }
     setSelectedTerm(null);
     setSelectedDef(null);
-    setShowMatchConfirm(false);
+    setWrongTermId(null);
+    setWrongDefId(null);
     setUserMatches({});
-    setPairStatus({});
-    setDefStatus({});
     setMatchedPairsCount(0);
     setMatchingWrongCount(0);
     setMatchingFinished(false);
+    setMatchedPopup(null);
+    setPopupVisible(false);
     setScoreSubmitted(false);
     setSecondsElapsed(0);
     setTimerActive(true);
@@ -512,7 +532,6 @@ function PlayGameContent() {
     );
   }
 
-  // คำนวณจำนวนข้อและสถานะสำหรับแสดงบนแถบ 3 กล่องด้านบน
   const totalCount =
     activeQuestions.length > 0
       ? activeQuestions.length
@@ -534,7 +553,6 @@ function PlayGameContent() {
       ? 'เกมการ์ด'
       : 'ตอบคำถาม';
 
-  // คำนวณคะแนนสำหรับหน้าสรุปผล
   const finalCorrect =
     activeQuestions.length > 0
       ? quizScore
@@ -553,21 +571,55 @@ function PlayGameContent() {
 
   return (
     <div className="min-h-screen space-theme-bg text-white py-6 px-4 md:px-10 flex flex-col items-center justify-center relative overflow-hidden">
-      {/* โลโก้มุมซ้ายบนตามแบบ PDF */}
+      <style jsx global>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-8px); }
+          40%, 80% { transform: translateX(8px); }
+        }
+        .animate-shake { animation: shake 0.5s ease-in-out; }
+      `}</style>
+
+      {/* 🌟 MATCHING POPUP TOAST กลางจอ */}
+      {matchedPopup && (
+        <div
+          className={`fixed top-1/2 left-1/2 z-50 pointer-events-none transform -translate-x-1/2 transition-all duration-600 ease-out ${
+            popupVisible
+              ? '-translate-y-1/2 opacity-100 scale-100'
+              : '-translate-y-[62%] opacity-0 scale-95'
+          }`}
+        >
+          <div className="bg-neutral-900/95 border-2 border-emerald-500 rounded-3xl p-6 md:p-8 shadow-2xl shadow-emerald-950/80 backdrop-blur-md max-w-md w-[90vw] text-center space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 text-xs font-black uppercase tracking-wider">
+              <span>✨ จับคู่ถูกต้อง! Perfect Match</span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="text-base md:text-xl font-black text-indigo-300">
+                {matchedPopup.term}
+              </div>
+              <div className="text-xs text-neutral-400 font-bold uppercase tracking-widest">
+                ⮁ เชื่อมโยงกับ ⮁
+              </div>
+              <div className="text-xs md:text-sm font-medium text-emerald-200 bg-emerald-950/40 p-3 rounded-xl border border-emerald-900/60 leading-relaxed">
+                {matchedPopup.definition}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* โลโก้มุมซ้ายบน */}
       <div className="fixed top-5 left-6 z-30 hidden xl:block">
         <LearnCraftLogo size="md" />
       </div>
 
-      {/* กรอบกระดานเกมตรงกลางสีเทาเข้มโปร่งแสง */}
       <div className="w-full max-w-4xl bg-[#2b2a2e]/90 border border-neutral-600/40 rounded-3xl p-6 md:p-10 min-h-[85vh] flex flex-col justify-between shadow-2xl relative">
-        {/* แถบโลโก้บนมือถือ/จอเล็ก */}
         <div className="xl:hidden flex justify-center pb-3">
           <LearnCraftLogo size="sm" />
         </div>
 
-        {/* ==========================================
-            แถบสถานะ 3 กล่องด้านบน (ตามแบบใน PDF ทุกหน้า)
-            ========================================== */}
+        {/* แถบสถานะ 3 กล่องด้านบน */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
           <div className="px-6 py-2.5 bg-[#636682] rounded-2xl text-sm md:text-base font-bold text-white shadow-md">
             {currentStep} จาก {totalCount} ข้อ
@@ -583,27 +635,30 @@ function PlayGameContent() {
         </div>
 
         {/* ==========================================
-            🎯 1. โหมดตอบคำถาม (QUIZ - ตามแบบหน้า 4-5)
+            🎯 1. QUIZ GAME
             ========================================== */}
         {activeQuestions.length > 0 && !quizFinished && (
-          <div className="my-auto space-y-8 py-4">
-            {/* กล่องคำถาม */}
+          <div className="my-auto space-y-6 py-4">
             <div className="w-full py-5 px-6 bg-[#636682] rounded-2xl text-center text-base md:text-xl font-bold text-white shadow-lg">
               {currentQuizIndex + 1}.{activeQuestions[currentQuizIndex].question}
             </div>
 
-            {/* ตารางตัวเลือก 4 มุม + วงกลมตรงกลาง */}
             <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               {activeQuestions[currentQuizIndex].options?.map((optionText, optIdx) => {
                 const isSelected = selectedOption === optIdx;
                 const isCorrect = activeQuestions[currentQuizIndex].answer === optIdx;
 
-                let btnStyle = 'bg-[#7477e6] hover:bg-[#6366f1] text-black';
-                if (isConfirmed) {
+                let btnStyle = 'bg-[#7477e6] hover:bg-[#6366f1] text-black border-2 border-black';
+
+                if (!isConfirmed) {
+                  if (isSelected) {
+                    btnStyle = 'bg-[#7477e6] text-black border-4 border-[#48bb3a] ring-4 ring-[#48bb3a]/50 scale-[1.02] shadow-[0_0_20px_rgba(72,187,58,0.6)]';
+                  }
+                } else {
                   if (isCorrect) {
-                    btnStyle = 'bg-[#48bb3a] text-black';
+                    btnStyle = 'bg-[#48bb3a] text-black border-2 border-black';
                   } else if (isSelected && !isCorrect) {
-                    btnStyle = 'bg-[#c92a2a] text-white';
+                    btnStyle = 'bg-[#c92a2a] text-white border-2 border-black';
                   }
                 }
 
@@ -612,36 +667,67 @@ function PlayGameContent() {
                     key={optIdx}
                     disabled={isConfirmed}
                     onClick={() => handleSelectQuizOption(optIdx)}
-                    className={`min-h-[130px] md:min-h-[150px] p-6 rounded-2xl border-2 border-black font-bold text-sm md:text-base flex items-center justify-center text-center shadow-xl transition-all cursor-pointer ${btnStyle}`}
+                    className={`min-h-[130px] md:min-h-[150px] p-6 rounded-2xl font-bold text-sm md:text-base flex items-center justify-center text-center shadow-xl transition-all cursor-pointer ${btnStyle}`}
                   >
                     <span>{optionText}</span>
                   </button>
                 );
               })}
 
-              {/* วงกลมสีดำ/ม่วงตรงกลางตามแบบ PDF หน้า 4-5 */}
               <div className="hidden md:flex absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-black items-center justify-center pointer-events-none shadow-2xl">
                 {isConfirmed && (
                   <div className="w-16 h-16 rounded-full bg-[#3b2fd4] transition-all duration-200 scale-100" />
                 )}
               </div>
             </div>
+
+            {!isConfirmed && (
+              <div className="pt-2">
+                <button
+                  onClick={handleConfirmAnswer}
+                  disabled={selectedOption === null}
+                  className={`w-full py-3.5 font-bold text-sm rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 border-2 border-black ${
+                    selectedOption !== null
+                      ? 'bg-[#4f46e5] hover:bg-[#4338ca] text-white cursor-pointer hover:scale-[1.01] active:scale-[0.99]'
+                      : 'bg-[#38363a] text-neutral-400 cursor-not-allowed opacity-70'
+                  }`}
+                >
+                  <span>{selectedOption !== null ? 'ยืนยันคำตอบ 🔒' : 'กรุณาคลิกเลือกคำตอบด้านบนก่อน'}</span>
+                </button>
+              </div>
+            )}
+
+            {isConfirmed && (
+              <div className="space-y-4 pt-2">
+                {activeQuestions[currentQuizIndex].explanation && (
+                  <div className="bg-[#38363a] p-4 rounded-2xl border border-neutral-600 text-xs space-y-1 text-neutral-200">
+                    <span className="font-bold text-indigo-300">💡 คำอธิบายเฉลย:</span>
+                    <p className="text-neutral-300 leading-relaxed">{activeQuestions[currentQuizIndex].explanation}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleNextQuestion}
+                  className="w-full py-3.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-sm rounded-2xl border-2 border-black shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>{currentQuizIndex + 1 === activeQuestions.length ? 'ดูผลการทดสอบรวม 🏁' : 'ข้อถัดไป ➔'}</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ==========================================
-            🎴 2. โหมดเกมการ์ด (FLASHCARD - ตามแบบหน้า 12-13)
+            🎴 2. FLASHCARD GAME
             ========================================== */}
         {activeCards.length > 0 && !flashcardFinished && (
           <div className="my-auto space-y-6 py-4">
-            {/* แถบ ตอบถูก +1 ตอบผิด - 1 */}
             <div className="max-w-xs mx-auto py-2.5 px-6 bg-[#636682] rounded-2xl flex items-center justify-between text-xs md:text-sm font-bold text-white shadow">
               <span>ตอบถูก +1</span>
               <span>ตอบผิด - 1</span>
             </div>
 
             <div className="flex items-center justify-between gap-4 md:gap-8 py-4">
-              {/* ปุ่ม ผิด สีแดงด้านซ้าย */}
               <button
                 onClick={() => handleCardRating(false)}
                 className="w-24 md:w-36 h-44 md:h-56 bg-[#b91c1c] hover:bg-red-700 text-white font-bold text-lg md:text-xl rounded-2xl border-2 border-black shadow-xl transition-transform active:scale-95 cursor-pointer shrink-0"
@@ -649,7 +735,6 @@ function PlayGameContent() {
                 ผิด
               </button>
 
-              {/* การ์ดตรงกลาง คลิกเพื่อดูคำตอบ */}
               <div
                 onClick={() => {
                   playSound('flip');
@@ -668,7 +753,6 @@ function PlayGameContent() {
                 </div>
               </div>
 
-              {/* ปุ่ม ถูก สีเขียวด้านขวา */}
               <button
                 onClick={() => handleCardRating(true)}
                 className="w-24 md:w-36 h-44 md:h-56 bg-[#15803d] hover:bg-green-700 text-white font-bold text-lg md:text-xl rounded-2xl border-2 border-black shadow-xl transition-transform active:scale-95 cursor-pointer shrink-0"
@@ -680,7 +764,7 @@ function PlayGameContent() {
         )}
 
         {/* ==========================================
-            🧩 3. โหมดเกมจับคู่ (MATCHING - ตามแบบหน้า 7-10)
+            🧩 3. MATCHING GAME
             ========================================== */}
         {activePairs.length > 0 && !matchingFinished && (
           <div className="my-auto space-y-6 py-2 relative">
@@ -689,94 +773,73 @@ function PlayGameContent() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              {/* คอลัมน์ซ้าย (Terms) */}
-              <div className="space-y-3">
-                {activePairs.map((p) => {
-                  const status = pairStatus[p.id];
-                  const isSelected = selectedTerm === p.id;
+              <div className="space-y-3.5">
+                {activePairs
+                  .filter((p) => !userMatches[p.id])
+                  .map((p) => {
+                    const isSelected = selectedTerm === p.id;
+                    const isWrong = wrongTermId === p.id;
 
-                  let bgClass = 'bg-[#7477e6] text-black';
-                  if (status === 'correct') bgClass = 'bg-[#48bb3a] text-black';
-                  else if (status === 'wrong') bgClass = 'bg-[#c92a2a] text-white';
+                    let cardClass = 'bg-[#7477e6] hover:bg-[#686be0] text-black border-2 border-transparent';
 
-                  return (
-                    <button
-                      key={p.id}
-                      disabled={status === 'correct'}
-                      onClick={() => handleSelectTerm(p.id)}
-                      className={`w-full min-h-[60px] py-3.5 px-5 rounded-2xl font-bold text-xs md:text-sm text-left transition-all shadow-md cursor-pointer ${bgClass} ${
-                        isSelected ? 'border-4 border-black scale-[1.01]' : 'border-2 border-transparent'
-                      }`}
-                    >
-                      {p.term}
-                    </button>
-                  );
-                })}
+                    if (isWrong) {
+                      cardClass = 'bg-[#c92a2a] text-white border-4 border-rose-300 animate-shake shadow-lg';
+                    } else if (isSelected) {
+                      cardClass = 'bg-[#7477e6] text-black border-4 border-[#48bb3a] ring-4 ring-[#48bb3a]/50 scale-[1.02] shadow-[0_0_20px_rgba(72,187,58,0.6)]';
+                    }
+
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleSelectTerm(p.id)}
+                        className={`w-full h-[92px] px-5 rounded-2xl font-bold text-xs md:text-sm text-center transition-all duration-200 flex items-center justify-center shadow-md cursor-pointer ${cardClass}`}
+                      >
+                        <span className="line-clamp-3 leading-snug">{p.term}</span>
+                      </button>
+                    );
+                  })}
               </div>
 
-              {/* คอลัมน์ขวา (Definitions) */}
-              <div className="space-y-3">
-                {shuffledDefinitions.map((d) => {
-                  const status = defStatus[d.id];
-                  const isSelected = selectedDef === d.id;
+              <div className="space-y-3.5">
+                {shuffledDefinitions
+                  .filter((d) => !Object.values(userMatches).includes(d.id))
+                  .map((d) => {
+                    const isSelected = selectedDef === d.id;
+                    const isWrong = wrongDefId === d.id;
 
-                  let bgClass = 'bg-[#7477e6] text-black';
-                  if (status === 'correct') bgClass = 'bg-[#48bb3a] text-black';
-                  else if (status === 'wrong') bgClass = 'bg-[#c92a2a] text-white';
+                    let cardClass = 'bg-[#7477e6] hover:bg-[#686be0] text-black border-2 border-transparent';
 
-                  return (
-                    <button
-                      key={d.id}
-                      disabled={status === 'correct'}
-                      onClick={() => handleSelectDefinition(d.id)}
-                      className={`w-full min-h-[60px] py-3.5 px-5 rounded-2xl font-bold text-xs md:text-sm text-left transition-all shadow-md cursor-pointer ${bgClass} ${
-                        isSelected ? 'border-4 border-black scale-[1.01]' : 'border-2 border-transparent'
-                      }`}
-                    >
-                      {d.text}
-                    </button>
-                  );
-                })}
+                    if (isWrong) {
+                      cardClass = 'bg-[#c92a2a] text-white border-4 border-rose-300 animate-shake shadow-lg';
+                    } else if (isSelected) {
+                      cardClass = 'bg-[#7477e6] text-black border-4 border-[#48bb3a] ring-4 ring-[#48bb3a]/50 scale-[1.02] shadow-[0_0_20px_rgba(72,187,58,0.6)]';
+                    }
+
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => handleSelectDefinition(d.id)}
+                        className={`w-full h-[92px] px-5 rounded-2xl font-bold text-xs md:text-sm text-center transition-all duration-200 flex items-center justify-center shadow-md cursor-pointer ${cardClass}`}
+                      >
+                        <span className="line-clamp-3 leading-snug">{d.text}</span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
-
-            {/* ป๊อปอัปถาม "ยืนยันคำตอบหรือไม่" ตามแบบหน้า 9 */}
-            {showMatchConfirm && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                <div className="bg-[#d0d4fc] text-black rounded-3xl p-8 w-80 text-center space-y-8 shadow-2xl border-2 border-black">
-                  <h3 className="text-lg font-bold">ยืนยันคำตอบหรือไม่</h3>
-                  <div className="flex items-center justify-around font-bold text-base">
-                    <button
-                      onClick={handleCancelMatchModal}
-                      className="px-4 py-2 hover:bg-black/10 rounded-xl cursor-pointer"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      onClick={handleConfirmMatchModal}
-                      className="px-4 py-2 hover:bg-black/10 rounded-xl cursor-pointer"
-                    >
-                      ตกลง
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
         {/* ==========================================
-            🏁 4. หน้านับคะแนนและตารางอันดับ (ตามแบบหน้า 15)
+            🏁 4. SUMMARY & LEADERBOARD
             ========================================== */}
         {isGameDone && (
           <div className="my-auto space-y-6 py-4">
-            {/* กล่องข้อความภารกิจสำเร็จ */}
             <div className="bg-[#38363a] rounded-3xl p-6 text-center space-y-2 max-w-lg mx-auto shadow-lg">
               <h2 className="text-xl md:text-2xl font-bold text-white">ยอดเยี่ยมมาก! ภารกิจสำเร็จ</h2>
               <p className="text-sm text-neutral-300">ใช้เวลาทั้งหมด: {formatClock(secondsElapsed)}</p>
             </div>
 
-            {/* กล่องสถิติ 3 สี: เขียว แดง ม่วง */}
             <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
               <div className="bg-[#48bb3a] border-2 border-black rounded-2xl p-5 text-center shadow-lg">
                 <div className="text-3xl font-black text-white">{finalCorrect}</div>
@@ -792,7 +855,6 @@ function PlayGameContent() {
               </div>
             </div>
 
-            {/* ช่องกรอกชื่อเพื่อส่งคะแนนขึ้นตารางอันดับ */}
             {!scoreSubmitted && (
               <div className="max-w-lg mx-auto bg-[#38363a] p-4 rounded-2xl flex gap-2 shadow">
                 <input
@@ -811,7 +873,6 @@ function PlayGameContent() {
               </div>
             )}
 
-            {/* ตารางอันดับ ตามแบบหน้า 15 */}
             <div className="max-w-lg mx-auto space-y-3 pt-2">
               <div className="bg-[#38363a] px-6 py-2 rounded-2xl text-center font-bold text-sm w-44 mx-auto shadow">
                 ตารางอันดับ
@@ -848,7 +909,6 @@ function PlayGameContent() {
               )}
             </div>
 
-            {/* ปุ่มเล่นใหม่ */}
             <div className="max-w-lg mx-auto pt-2 text-center">
               <button
                 onClick={() => {
