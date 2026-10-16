@@ -11,6 +11,9 @@ export default function HomePage() {
   const router = useRouter();
   const libraryRef = useRef(null);
 
+  // กำหนดตัวแปร API URL ไว้ด้านบนสุด เพื่อให้ทุกฟังก์ชันในหน้านี้เรียกใช้ได้
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
   // คลังมินิเกม State
   const [games, setGames] = useState([]);
   const [loadingGames, setLoadingGames] = useState(true);
@@ -27,11 +30,12 @@ export default function HomePage() {
   const [generating, setGenerating] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
 
-  // 1️⃣ ดึงรายการเกมทั้งหมดจาก Backend (ปรับให้ตรงกับ /api/games ของ main.py)
+  // 1️⃣ ดึงรายการเกมทั้งหมดจาก Backend 
   const fetchGames = async () => {
     setLoadingGames(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/games', {
+      // แก้ให้ใช้ API_URL แทน
+      const res = await fetch(`${API_URL}/api/games`, {
         cache: 'no-store',
       });
       const result = await res.json();
@@ -63,7 +67,7 @@ export default function HomePage() {
     setShowCreateModal(true);
   };
 
-  // 2️⃣ ฟังก์ชันสั่งสร้างเกมด้วย AI (ปรับให้ตรงกับ Flow ของ main.py)
+  // 2️⃣ ฟังก์ชันสั่งสร้างเกมด้วย AI 
   const handleGenerateGame = async (e) => {
     e.preventDefault();
     if (!topic.trim() && !contentText.trim() && !pdfFile) {
@@ -79,7 +83,8 @@ export default function HomePage() {
       if (pdfFile) {
         const formData = new FormData();
         formData.append('file', pdfFile);
-        const extractRes = await fetch('http://127.0.0.1:8000/api/extract-text', {
+        // แก้ให้ใช้ API_URL แทน
+        const extractRes = await fetch(`${API_URL}/api/extract-text`, {
           method: 'POST',
           body: formData,
         });
@@ -89,7 +94,8 @@ export default function HomePage() {
       }
 
       // STEP 2: ส่งข้อความให้ AI สร้างรูปแบบเกมผ่าน /api/generate-game
-      const genRes = await fetch('http://127.0.0.1:8000/api/generate-game', {
+      // แก้ให้ใช้ API_URL แทน
+      const genRes = await fetch(`${API_URL}/api/generate-game`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,7 +110,8 @@ export default function HomePage() {
 
       // STEP 3: บันทึกเกมลงฐานข้อมูลผ่าน /api/games/save
       const generatedTitle = genData.data?.title || topic || 'บทเรียนใหม่';
-      const saveRes = await fetch('http://127.0.0.1:8000/api/games/save', {
+      // แก้ให้ใช้ API_URL แทน
+      const saveRes = await fetch(`${API_URL}/api/games/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,7 +143,8 @@ export default function HomePage() {
   const handleDeleteGame = async (gameId) => {
     if (!confirm('คุณต้องการลบมินิเกมนี้ใช่หรือไม่?')) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/games/${gameId}`, {
+      // แก้ให้ใช้ API_URL แทน
+      const res = await fetch(`${API_URL}/api/games/${gameId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
