@@ -49,7 +49,6 @@ class GenerateRequest(BaseModel):
     game_type: str = "quiz"
     item_count: int = 5
 
-# ✅ เพิ่ม user_email เพื่อระบุเจ้าของเกม
 class SaveGameRequest(BaseModel):
     title: str
     game_type: str
@@ -181,19 +180,16 @@ async def save_game(payload: SaveGameRequest):
         "title": payload.title,
         "game_type": payload.game_type,
         "data": payload.data,
-        "user_email": payload.user_email, # ✅ บันทึกอีเมลผู้สร้างลง Database
+        "user_email": payload.user_email, 
         "created_at": str(uuid.uuid1())
     }
     await games_collection.insert_one(doc)
     return {"status": "success", "game_id": game_id}
 
 @app.get("/api/games")
-async def get_all_games(user_email: Optional[str] = None):
-    # ✅ ถ้าไม่ได้ส่ง user_email มา ให้คืนค่าว่างทันที เพื่อไม่ให้เห็นข้อมูลคนอื่นหรือข้อมูลเทสต์เก่า
-    if not user_email:
-        return {"status": "success", "games": []}
-
-    cursor = games_collection.find({"user_email": user_email}, {"_id": 0})
+async def get_all_games():
+    # 🎯 ลบเงื่อนไขเช็คอีเมลออก ให้ดึงเกมทั้งหมดในฐานข้อมูลขึ้นมาโชว์เลย
+    cursor = games_collection.find({}, {"_id": 0})
     games = await cursor.to_list(length=100)
     
     summary_list = []

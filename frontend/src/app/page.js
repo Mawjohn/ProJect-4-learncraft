@@ -34,10 +34,10 @@ export default function HomePage() {
   const fetchGames = async () => {
     setLoadingGames(true);
     try {
-      // แก้ให้ใช้ API_URL แทน
-      const res = await fetch(`${API_URL}/api/games`, {
+      const userEmail = session?.user?.email || '';
+      const res = await fetch(`${API_URL}/api/games?user=${userEmail}`, {
         cache: 'no-store',
-      });
+    });
       const result = await res.json();
       
       if (result.status === 'success' && Array.isArray(result.games)) {
